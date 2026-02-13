@@ -3,8 +3,10 @@
   functions = "netlify/functions"
 
 [plugins]
+  [[plugins]]
   package = "@netlify/plugin-functions-core"
-
+  
 [site]
   id = "c21b31f0-d3e3-45c5-a19b-abdba58c38ac"
+
 
