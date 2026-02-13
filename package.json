@@ -1,7 +1,16 @@
 {
-  "name": "patsmart",
+  "name": "patsmart-project",
   "version": "1.0.0",
+  "description": "Dashboard per i servizi della Provincia Autonoma di Trento con persistenza dati",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
+    "@netlify/blobs": "^8.1.0",
     "axios": "^1.6.0"
   }
 }
