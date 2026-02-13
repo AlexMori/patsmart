@@ -167,10 +167,8 @@
                 return mSearch && mArg && mDest;
             });
             const fOff = GLOBAL_DATA.flatStrutture.filter(o => o.name.toLowerCase().includes(q));
-            
             renderServices(fServ);
             if (q === "") renderStrutture(GLOBAL_DATA.strutture); else renderStruttureList(fOff);
-            
             const activeTab = document.querySelector('.nav-link.active').id;
             document.getElementById('result-count').innerText = activeTab === 'btn-elenco' ? `Risultati: ${fServ.length}` : `Risultati: ${fOff.length}`;
         }
