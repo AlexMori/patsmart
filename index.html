@@ -105,7 +105,7 @@
                     addr: "Indirizzo non disponibile", coords: null, contacts: contactMap[s.id.replace('structure','')] || [],
                     children: []
                 };
-                if (s.has_spatial_coverage?.[0]) {
+                /*if (s.has_spatial_coverage?.[0]) {
                     const p = await fetchJSON(s.has_spatial_coverage[0].uri);
                     if (p?.has_address) {
                         obj.addr = p.has_address.address;
@@ -114,7 +114,7 @@
                             points.push({ name: obj.name, addr: obj.addr, ...obj.coords });
                         }
                     }
-                }
+                }*/
                 flat.push(obj);
             }
 
@@ -180,14 +180,20 @@
                 const off = GLOBAL_DATA.flatStrutture.find(o => s.officeIds.includes(o.id));
                 return `
                 <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
-                    <div class="flex flex-wrap gap-1 mb-2">${s.tags.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}</div>
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        ${s.tags.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}
+                    </div>
                     <div class="flex justify-between items-start mb-2">
                         <h3 class="font-bold text-gray-900 leading-tight">${s.name}</h3>
                         <a href="${s.url}" target="_blank" class="text-red-600"><i class="fas fa-external-link-alt"></i></a>
                     </div>
                     <div class="text-xs text-gray-500 desc-truncate mb-4" id="ser-${s.id}">${s.desc}</div>
                     <button onclick="toggleText('ser-${s.id}', this)" class="text-[10px] font-bold text-red-600 mb-4 text-left uppercase">Dettagli</button>
-                    ${off ? `<div class="mt-auto pt-4 border-t border-gray-100 flex items-center gap-2 text-[10px] text-gray-400"><i class="fas fa-map-marker-alt text-red-400"></i><span class="truncate">${off.addr}</span></div>` : ''}
+                    ${off ? `
+                    <div class="mt-auto pt-4 border-t border-gray-100 flex items-center gap-2 text-[10px] text-gray-400">
+                        <i class="fas fa-map-marker-alt text-red-400"></i>
+                        <span class="truncate">${off.addr}</span>
+                    </div>` : ''}
                 </div>`;
             }).join('');
         }
