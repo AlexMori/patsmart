@@ -138,7 +138,7 @@
                     children: []
                 };
 
-                /*if (s.has_spatial_coverage?.[0]) {
+                if (s.has_spatial_coverage?.[0]) {
                     const p = await fetchJSON(s.has_spatial_coverage[0].uri);
                     if (p?.has_address) {
                         obj.addr = p.has_address.address;
@@ -147,7 +147,7 @@
                             points.push({ name: obj.name, addr: obj.addr, ...obj.coords });
                         }
                     }
-                }*/
+                }
                 flat.push(obj);
             }
 
@@ -287,3 +287,4 @@
     </script>
 </body>
 </html>
+
