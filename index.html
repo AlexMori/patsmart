@@ -4,32 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PATSmart - Dashboard Istituzionale</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
-        
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        
         .nav-link.active { color: #dc2626; border-bottom: 2px solid #dc2626; background-color: #fef2f2; }
-        
         .desc-truncate { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .desc-expanded { -webkit-line-clamp: unset !important; display: block !important; }
-
-        #map-view { height: 650px; width: 100%; border-radius: 1rem; z-index: 1; }
-
+        #map-view { height: 600px; width: 100%; border-radius: 1rem; z-index: 1; }
         #loader-overlay {
             position: fixed; inset: 0; background: white; z-index: 9999;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
-
         .custom-marker {
             background: #dc2626; color: white; width: 30px; height: 30px;
             border-radius: 50% 50% 50% 0; display: flex; align-items: center; justify-content: center;
@@ -42,8 +34,7 @@
 
     <div id="loader-overlay">
         <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600 mb-4"></div>
-        <h2 class="text-xl font-bold text-gray-800">Caricamento dati PAT...</h2>
-        <p class="text-gray-400 text-sm mt-2">Attendere prego</p>
+        <h2 class="text-xl font-bold text-gray-800">Accesso al Database...</h2>
     </div>
 
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -53,55 +44,48 @@
                     <div class="bg-red-700 text-white w-10 h-10 flex items-center justify-center rounded-lg font-bold text-xl shadow-lg">TN</div>
                     <div>
                         <h1 class="font-bold text-xl leading-tight">PAT<span class="text-red-600">Smart</span></h1>
-                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Portale Open Data</p>
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Open Data Browser</p>
                     </div>
                 </div>
 
                 <div class="relative w-full md:w-1/3">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                     <input type="text" id="searchInput" onkeyup="handleSearch(this.value)" 
-                           placeholder="Cerca uffici, servizi, parole chiave..." 
-                           class="w-full pl-10 pr-10 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500 outline-none transition-all">
-                    <button id="clearSearch" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400">
+                           placeholder="Cerca uffici o servizi..." 
+                           class="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white outline-none transition-all">
+                    <button id="clearSearch" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                         <i class="fas fa-times text-xs"></i>
                     </button>
                 </div>
 
                 <nav class="flex gap-1 bg-gray-100 p-1 rounded-lg">
-                    <button onclick="switchTab('strutture')" id="btn-strutture" class="nav-link active px-4 py-1.5 font-bold text-xs md:text-sm transition-all rounded-md">Uffici</button>
-                    <button onclick="switchTab('servizi')" id="btn-servizi" class="nav-link px-4 py-1.5 font-bold text-xs md:text-sm transition-all rounded-md">Servizi</button>
-                    <button onclick="switchTab('mappa')" id="btn-mappa" class="nav-link px-4 py-1.5 font-bold text-xs md:text-sm transition-all rounded-md">Mappa</button>
+                    <button onclick="switchTab('strutture')" id="btn-strutture" class="nav-link active px-4 py-1.5 font-bold text-xs rounded-md">Uffici</button>
+                    <button onclick="switchTab('servizi')" id="btn-servizi" class="nav-link px-4 py-1.5 font-bold text-xs rounded-md">Servizi</button>
+                    <button onclick="switchTab('mappa')" id="btn-mappa" class="nav-link px-4 py-1.5 font-bold text-xs rounded-md">Mappa</button>
                 </nav>
             </div>
         </div>
 
         <div class="bg-gray-50 border-t border-gray-200">
             <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-2 items-center">
-                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-2"><i class="fas fa-filter"></i> Filtri:</span>
-                
                 <div class="relative dropdown-container">
-                    <button onclick="toggleDropdown('menu-argomenti')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2 hover:border-red-300 transition-colors">
-                        Argomento <span id="count-argomenti" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px] opacity-50"></i>
+                    <button onclick="toggleDropdown('menu-argomenti')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
+                        Argomenti <span id="count-argomenti" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
                     </button>
                     <div id="menu-argomenti" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
                 </div>
-
                 <div class="relative dropdown-container">
-                    <button onclick="toggleDropdown('menu-destinatari')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2 hover:border-red-300 transition-colors">
-                        Destinatari <span id="count-destinatari" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px] opacity-50"></i>
+                    <button onclick="toggleDropdown('menu-destinatari')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
+                        Destinatari <span id="count-destinatari" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
                     </button>
                     <div id="menu-destinatari" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
                 </div>
-
-                <button onclick="resetFilters()" class="ml-auto text-[10px] font-bold text-red-600 uppercase hover:underline flex items-center gap-1">
-                    <i class="fas fa-trash-alt"></i> Reset
-                </button>
+                <button onclick="resetFilters()" class="ml-auto text-[10px] font-bold text-red-600 uppercase">Reset</button>
             </div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto p-4 md:p-6 min-h-screen">
-        
         <section id="view-strutture" class="tab-content active">
             <div id="container-strutture" class="space-y-6"></div>
         </section>
@@ -111,14 +95,10 @@
         </section>
 
         <section id="view-mappa" class="tab-content">
-            <div class="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
+            <div class="bg-white p-2 rounded-xl border border-gray-200">
                 <div id="map-view"></div>
             </div>
-            <p class="text-center text-xs text-gray-400 mt-2">
-                <i class="fas fa-info-circle"></i> Vengono mostrati solo gli uffici che hanno fornito coordinate GPS valide.
-            </p>
         </section>
-
     </main>
 
     <script>
@@ -129,268 +109,206 @@
         async function loadData() {
             try {
                 const response = await fetch('/.netlify/functions/get-data');
-                
-                if (!response.ok) throw new Error(`Errore Server: ${response.status}`);
-                
+                if (!response.ok) throw new Error(response.status);
                 const data = await response.json();
                 
-                GLOBAL_DATA = data;
-                
+                GLOBAL_DATA = {
+                    servizi: data.servizi || [],
+                    strutture: data.strutture || [],
+                    flatStrutture: data.flatStrutture || [],
+                    sportelli: data.sportelli || []
+                };
+
+                if (GLOBAL_DATA.servizi.length === 0 && GLOBAL_DATA.flatStrutture.length === 0) {
+                    document.getElementById('loader-overlay').innerHTML = `
+                        <div class="text-center p-6">
+                            <h3 class="font-bold">Database in aggiornamento...</h3>
+                            <p class="text-xs text-gray-500 mt-2">La prima sincronizzazione richiede circa 30 secondi.</p>
+                            <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-xs">Aggiorna</button>
+                        </div>`;
+                    return;
+                }
+
                 initFilterMenus();
                 renderStrutture(GLOBAL_DATA.strutture);
                 renderServices(GLOBAL_DATA.servizi);
-                
                 document.getElementById('loader-overlay').style.display = 'none';
-
             } catch (e) {
-                console.error("Errore caricamento:", e);
-                document.getElementById('loader-overlay').innerHTML = `
-                    <div class="text-center p-8 bg-red-50 rounded-2xl border border-red-100">
-                        <i class="fas fa-wifi text-red-400 text-4xl mb-4"></i>
-                        <h3 class="text-lg font-bold text-red-800">Errore di connessione</h3>
-                        <p class="text-sm text-red-600 mt-2">Impossibile recuperare i dati dalla Provincia.</p>
-                        <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold">Riprova</button>
-                    </div>`;
+                document.getElementById('loader-overlay').innerHTML = `<div class="text-red-600 font-bold">Errore: ${e.message}</div>`;
             }
         }
-        
+
+        function initFilterMenus() {
+            const args = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.tags || []))].filter(Boolean).sort();
+            const dests = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.addressee || []))].filter(Boolean).sort();
+            renderChecklist('menu-argomenti', args, 'argomenti');
+            renderChecklist('menu-destinatari', dests, 'destinatari');
+        }
+
+        function renderChecklist(id, items, cat) {
+            const container = document.getElementById(id);
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p class="text-[10px] p-2">Nessun filtro</p>';
+                return;
+            }
+            container.innerHTML = items.map(item => {
+                if (!item) return '';
+                const safeItem = String(item).replace(/'/g, "\\'");
+                return `
+                    <label class="flex items-start gap-3 p-2 hover:bg-gray-50 cursor-pointer text-[11px]">
+                        <input type="checkbox" onchange="updateFilter('${cat}', '${safeItem}')" class="rounded text-red-600">
+                        <span>${item}</span>
+                    </label>`;
+            }).join('');
+        }
+
         function createOfficeCard(n) {
             const contacts = n.contacts.length > 0 ? `
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                    ${n.contacts.map(c => `
-                        <div class="flex items-center gap-2 text-[10px]">
-                            <i class="fas ${getIcon(c.type)} text-gray-400 w-3 text-center"></i>
-                            <a href="${c.type.match(/email|pec/i) ? 'mailto:'+c.value : 'tel:'+c.value}" class="text-slate-600 truncate hover:text-red-600 font-medium transition-colors">${c.value}</a>
-                        </div>`).join('')}
+                <div class="grid grid-cols-1 gap-1 mt-3 bg-gray-50 p-2 rounded text-[10px]">
+                    ${n.contacts.map(c => `<div class="truncate"><i class="fas ${getIcon(c.type)} w-4"></i> ${c.value}</div>`).join('')}
                 </div>` : '';
-
             return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all relative group">
-                    <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <a href="${n.portalUrl}" target="_blank" class="text-gray-300 hover:text-red-600"><i class="fas fa-external-link-alt"></i></a>
-                    </div>
-                    
-                    <span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 mb-2">${n.type[0] || 'Ufficio'}</span>
-                    
-                    <h3 class="font-bold text-gray-900 text-lg leading-snug mb-1">${n.name}</h3>
-                    
-                    <div class="text-xs text-gray-500 desc-truncate mb-2" id="off-${n.id}">${n.desc || 'Descrizione non disponibile.'}</div>
-                    ${n.desc ? `<button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 uppercase hover:underline">Leggi tutto</button>` : ''}
-                    
+                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                    <span class="text-[9px] font-bold uppercase text-gray-400">${n.type[0] || 'Ufficio'}</span>
+                    <h3 class="font-bold text-gray-900 mb-1">${n.name}</h3>
+                    <div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || ''}</div>
+                    <button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 uppercase mt-1">Leggi</button>
                     ${contacts}
-                    
-                    <div class="mt-3 pt-3 border-t border-gray-50 flex items-start gap-2 text-[10px] text-gray-400">
-                        <i class="fas fa-map-marker-alt text-red-400 mt-0.5"></i>
-                        <span>${n.addr || 'Indirizzo non presente nei dati open data'}</span>
-                    </div>
+                    <div class="mt-3 pt-2 border-t text-[10px] text-gray-400 italic">${n.addr || 'Indirizzo non disponibile'}</div>
                 </div>`;
         }
 
         function renderStrutture(nodes, level = 0) {
             const container = document.getElementById('container-strutture');
             if (level === 0) container.innerHTML = '';
-            
             const html = nodes.map(n => `
-                <div class="${level > 0 ? 'ml-4 md:ml-10 border-l-2 border-dashed border-gray-200 pl-4 md:pl-6 mt-6' : 'mb-8'}">
+                <div class="${level > 0 ? 'ml-6 border-l pl-4 mt-4' : 'mb-6'}">
                     ${createOfficeCard(n)}
                     ${n.children && n.children.length > 0 ? renderStruttureRecursive(n.children, level + 1) : ''}
-                </div>
-            `).join('');
-            
+                </div>`).join('');
             if (level === 0) container.innerHTML = html;
             return html;
         }
 
         function renderStruttureRecursive(nodes, level) {
             return nodes.map(n => `
-                <div class="ml-4 md:ml-10 border-l-2 border-dashed border-gray-200 pl-4 md:pl-6 mt-6 relative">
-                    <div class="absolute top-8 -left-[26px] w-6 h-0.5 bg-gray-200 md:block hidden"></div> 
+                <div class="ml-6 border-l pl-4 mt-4">
                     ${createOfficeCard(n)}
                     ${n.children && n.children.length > 0 ? renderStruttureRecursive(n.children, level + 1) : ''}
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
         function renderServices(items) {
             const container = document.getElementById('grid-servizi');
+            container.innerHTML = items.map(s => getServiceCardHtml(s)).join('');
         }
-        
+
         function getServiceCardHtml(s) {
             return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
-                    <div class="flex justify-between items-start mb-3">
-                        <div class="flex flex-wrap gap-1">
-                            ${s.tags.slice(0,2).map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}
-                        </div>
-                        <a href="${s.url}" target="_blank" class="text-gray-300 hover:text-red-600"><i class="fas fa-external-link-alt"></i></a>
+                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col">
+                    <div class="flex flex-wrap gap-1 mb-2">
+                        ${s.tags.slice(0,2).map(t => `<span class="text-[9px] px-1 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}
                     </div>
-                    
-                    <h3 class="font-bold text-gray-900 mb-2 leading-tight flex-grow">${s.name}</h3>
-                    
-                    <div class="flex flex-wrap gap-1 mb-4">
-                        ${s.addressee.map(a => `<span class="bg-gray-100 text-gray-600 text-[9px] px-2 py-0.5 rounded-full border border-gray-200">${a}</span>`).join('')}
-                    </div>
-                    
-                    <div class="text-xs text-gray-500 desc-truncate" id="ser-${s.id}">${s.desc}</div>
-                    <button onclick="toggleText('ser-${s.id}', this)" class="text-[10px] font-bold text-red-600 mt-3 text-left uppercase hover:underline">Dettagli</button>
+                    <h3 class="font-bold text-sm mb-2">${s.name}</h3>
+                    <div class="text-xs text-gray-500 desc-truncate flex-grow" id="ser-${s.id}">${s.desc}</div>
+                    <button onclick="toggleText('ser-${s.id}', this)" class="text-[10px] font-bold text-red-600 mt-2 text-left">DETTAGLI</button>
+                    <a href="${s.url}" target="_blank" class="mt-3 block text-center bg-gray-100 py-1.5 rounded text-[10px] font-bold hover:bg-red-600 hover:text-white transition-all">VAI AL SERVIZIO</a>
                 </div>`;
         }
 
         function applyAllFilters() {
-            const q = document.getElementById('searchInput').value.toLowerCase().trim();
-            const containerServizi = document.getElementById('grid-servizi');
-            const containerStrutture = document.getElementById('container-strutture');
-
+            const q = document.getElementById('searchInput').value.toLowerCase();
             const fServ = GLOBAL_DATA.servizi.filter(s => {
                 const mSearch = s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q);
                 const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
                 const mDest = ACTIVE_FILTERS.destinatari.length === 0 || s.addressee.some(t => ACTIVE_FILTERS.destinatari.includes(t));
                 return mSearch && mArg && mDest;
             });
-
-            const fOff = GLOBAL_DATA.flatStrutture.filter(o => {
-                return o.name.toLowerCase().includes(q);
-            });
-
-            const totalResults = fServ.length + (q === "" ? 0 : fOff.length); 
+            const fOff = GLOBAL_DATA.flatStrutture.filter(o => o.name.toLowerCase().includes(q));
             
-            const resultsHeader = (q !== "" || ACTIVE_FILTERS.argomenti.length > 0 || ACTIVE_FILTERS.destinatari.length > 0) 
-                ? `<div class="col-span-full mb-4 flex items-center gap-3 animate-fadeIn p-2 bg-red-50 rounded-lg border border-red-100">
-                    <span class="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">${totalResults}</span>
-                    <span class="text-red-900 text-xs font-bold uppercase tracking-wide">Risultati trovati</span>
-                   </div>` 
-                : "";
+            const count = fServ.length + (q !== "" ? fOff.length : 0);
+            const header = (q || ACTIVE_FILTERS.argomenti.length || ACTIVE_FILTERS.destinatari.length) ? 
+                `<div class="col-span-full mb-4 p-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-100">${count} risultati trovati</div>` : "";
 
-            containerServizi.innerHTML = resultsHeader + (fServ.length > 0 
-                ? fServ.map(s => getServiceCardHtml(s)).join('') 
-                : `<div class="col-span-full py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
-                    <i class="fas fa-search text-2xl mb-2 opacity-50"></i><br>Nessun servizio trovato</div>`);
-
+            document.getElementById('grid-servizi').innerHTML = header + fServ.map(s => getServiceCardHtml(s)).join('');
             if (q === "") {
                 renderStrutture(GLOBAL_DATA.strutture);
             } else {
-                containerStrutture.innerHTML = resultsHeader + (fOff.length > 0 
-                    ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${fOff.map(o => createOfficeCard(o)).join('')}</div>`
-                    : `<div class="py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
-                        <i class="fas fa-building text-2xl mb-2 opacity-50"></i><br>Nessun ufficio corrisponde alla ricerca</div>`);
+                document.getElementById('container-strutture').innerHTML = header + `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${fOff.map(o => createOfficeCard(o)).join('')}</div>`;
             }
         }
 
         function initMap() {
-            if (mapInstance) { 
-                mapInstance.invalidateSize();
-                return; 
-            }
-            
+            if (mapInstance) { mapInstance.invalidateSize(); return; }
             mapInstance = L.map('map-view').setView([46.0697, 11.1211], 9);
-            
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-            }).addTo(mapInstance);
-            
-            const icon = L.divIcon({ 
-                className: '', 
-                html: '<div class="custom-marker"><i class="fas fa-building"></i></div>', 
-                iconSize: [30, 30], 
-                iconAnchor: [15, 30],
-                popupAnchor: [0, -35]
-            });
-            
-            let markersAdded = 0;
-            GLOBAL_DATA.sportelli.forEach(p => { 
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance);
+            const icon = L.divIcon({ className: '', html: '<div class="custom-marker"><i class="fas fa-building"></i></div>', iconSize: [30, 30], iconAnchor: [15, 30] });
+            GLOBAL_DATA.sportelli.forEach(p => {
                 if(p.lat && p.lng) {
-                    const gMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
-                    L.marker([p.lat, p.lng], { icon }).addTo(mapInstance)
-                     .bindPopup(`
-                        <div class="text-left min-w-[200px]">
-                            <b class="text-sm font-bold text-gray-800 block mb-1 leading-tight">${p.name}</b>
-                            <p class="text-[11px] text-gray-500 mb-3 border-b border-gray-100 pb-2">${p.addr}</p>
-                            <a href="${gMapsUrl}" target="_blank" class="inline-flex items-center gap-1.5 bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-md hover:bg-blue-700 transition-colors">
-                               <i class="fas fa-location-arrow"></i> NAVIGA QUI
-                            </a>
-                        </div>`);
-                    markersAdded++;
+                    L.marker([p.lat, p.lng], { icon }).addTo(mapInstance).bindPopup(`<b>${p.name}</b><br><small>${p.addr}</small>`);
                 }
             });
-            
-            if (markersAdded === 0) {
-                console.warn("Nessun punto con coordinate trovato nell'array sportelli.");
-            }
-        }
-
-        function initFilterMenus() {
-            const args = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.tags))].sort();
-            const dests = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.addressee))].sort();
-            renderChecklist('menu-argomenti', args, 'argomenti');
-            renderChecklist('menu-destinatari', dests, 'destinatari');
-        }
-
-        function renderChecklist(id, items, cat) {
-            document.getElementById(id).innerHTML = items.map(item => `
-                <label class="flex items-start gap-3 p-2 hover:bg-red-50 rounded-lg cursor-pointer text-[11px] font-medium border-b border-gray-50 last:border-0 transition-colors">
-                    <input type="checkbox" onchange="updateFilter('${cat}', '${item.replace(/'/g, "\\'")}')" class="rounded text-red-600 w-4 h-4 mt-0.5 focus:ring-red-500">
-                    <span class="leading-tight text-gray-700 select-none">${item}</span>
-                </label>`).join('');
         }
 
         function updateFilter(cat, val) {
             const i = ACTIVE_FILTERS[cat].indexOf(val);
             if (i > -1) ACTIVE_FILTERS[cat].splice(i, 1); else ACTIVE_FILTERS[cat].push(val);
-            
-            const badge = document.getElementById(`count-${cat}`);
-            badge.innerText = ACTIVE_FILTERS[cat].length;
-            badge.classList.toggle('hidden', ACTIVE_FILTERS[cat].length === 0);
-            
+            const b = document.getElementById(`count-${cat}`);
+            b.innerText = ACTIVE_FILTERS[cat].length;
+            b.classList.toggle('hidden', ACTIVE_FILTERS[cat].length === 0);
             applyAllFilters();
         }
 
-        function toggleText(id, btn) { 
-            const el = document.getElementById(id); 
-            const isEx = el.classList.toggle('desc-expanded'); 
-            btn.innerText = isEx ? 'Chiudi' : 'Leggi tutto'; 
+        function toggleText(id, btn) {
+            const el = document.getElementById(id);
+            const isEx = el.classList.toggle('desc-expanded');
+            btn.innerText = isEx ? 'CHIUDI' : 'LEGGI';
         }
 
-        function getIcon(t) { 
-            const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield-halved', fax: 'fa-fax' }; 
-            return m[t.toLowerCase()] || 'fa-info-circle'; 
+        function getIcon(t) {
+            const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield' };
+            return m[t.toLowerCase()] || 'fa-info-circle';
         }
 
-        function toggleDropdown(id) { 
-            const el = document.getElementById(id); 
-            const isHidden = el.classList.contains('hidden'); 
-            document.querySelectorAll('.dropdown-container > div[id^="menu-"]').forEach(d => d.classList.add('hidden')); 
-            if(isHidden) el.classList.remove('hidden'); 
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            const hide = el.classList.contains('hidden');
+            document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden'));
+            if(hide) el.classList.remove('hidden');
         }
 
-        function handleSearch(q) { 
-            document.getElementById('clearSearch').classList.toggle('hidden', q.trim() === '');
+        function handleSearch(q) {
+            document.getElementById('clearSearch').classList.toggle('hidden', q.length === 0);
             applyAllFilters();
         }
 
         function clearSearch() {
-            document.getElementById('searchInput').value = '';
-            handleSearch('');
+            document.getElementById('searchInput').value = "";
+            handleSearch("");
         }
 
         function resetFilters() {
             ACTIVE_FILTERS = { argomenti: [], destinatari: [] };
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            document.getElementById('count-argomenti').classList.add('hidden');
-            document.getElementById('count-destinatari').classList.add('hidden');
-            applyAllFilters();
+            document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
+            document.querySelectorAll('[id^="count-"]').forEach(b => b.classList.add('hidden'));
+            clearSearch();
         }
 
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            
-            document.getElementById(`view-${tab}`).classList.add('active');
-            document.getElementById(`btn-${tab}`).classList.add('active');
-            
-            if (tab === 'mappa') initMap();
+        function switchTab(t) {
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
+            document.getElementById('view-'+t).classList.add('active');
+            document.getElementById('btn-'+t).classList.add('active');
+            if(t === 'mappa') setTimeout(initMap, 100);
         }
 
-        window.addEventListener('DOMContentLoaded', loadData);
+        window.onclick = (e) => {
+            if (!e.target.closest('.dropdown-container')) {
+                document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden'));
+            }
+        };
+
+        window.onload = loadData;
     </script>
 </body>
 </html>
