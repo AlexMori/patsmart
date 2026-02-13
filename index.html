@@ -17,7 +17,6 @@
         .nav-link.active { color: #dc2626; border-bottom: 2px solid #dc2626; background-color: #fef2f2; }
         .desc-truncate { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .desc-expanded { -webkit-line-clamp: unset !important; display: block !important; }
-        #map-view { height: 600px; width: 100%; border-radius: 1rem; z-index: 1; }
         #loader-overlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
@@ -25,7 +24,7 @@
 
     <div id="loader-overlay">
         <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600 mb-4"></div>
-        <h2 class="text-xl font-bold">Caricamento in corso...</h2>
+        <h2 class="text-xl font-bold">Configurazione in corso...</h2>
     </div>
 
     <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -44,9 +43,6 @@
                     <input type="text" id="searchInput" onkeyup="handleSearch(this.value)" 
                            placeholder="Cerca uffici, servizi o destinatari..." 
                            class="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white outline-none">
-                    <button id="clearSearch" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                        <i class="fas fa-times text-xs"></i>
-                    </button>
                 </div>
 
                 <nav class="flex gap-1 bg-gray-100 p-1 rounded-lg">
@@ -64,6 +60,13 @@
                         Argomenti <span id="count-argomenti" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
                     </button>
                     <div id="menu-argomenti" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
+                </div>
+
+                <div class="relative dropdown-container">
+                    <button onclick="toggleDropdown('menu-strutture')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
+                        Strutture <span id="count-strutture" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
+                    </button>
+                    <div id="menu-strutture" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
                 </div>
                 
                 <div class="relative dropdown-container">
@@ -91,65 +94,58 @@
         </section>
 
         <section id="view-mappa" class="tab-content">
-            <div id="map-view"></div>
+            <div id="map-view" class="h-[600px] rounded-xl shadow-inner border"></div>
         </section>
     </main>
 
     <script>
         let GLOBAL_DATA = { servizi: [], strutture: [], flatStrutture: [], sportelli: [] };
-        let ACTIVE_FILTERS = { argomenti: [], destinatari: [] };
+        let ACTIVE_FILTERS = { argomenti: [], strutture: [], destinatari: [] };
         let mapInstance = null;
-    
+
         async function loadData() {
             try {
                 const response = await fetch('/.netlify/functions/get-data');
                 const data = await response.json();
                 GLOBAL_DATA = data;
                 
-                if (GLOBAL_DATA.servizi.length === 0 && (!GLOBAL_DATA.strutture || GLOBAL_DATA.strutture.length === 0)) {
-                    document.getElementById('loader-overlay').innerHTML = `
-                        <div class="text-center p-6">
-                            <h3 class="font-bold mb-4 text-lg">Database in caricamento...</h3>
-                            <p class="text-xs text-gray-500 mb-6">Il cronjob sta popolando il database.<br>Premi il tasto qui sotto per forzare un aggiornamento manuale.</p>
-                            <button onclick="syncData()" class="px-6 py-3 bg-red-600 text-white rounded-full font-bold shadow-lg hover:bg-red-700 transition-all">
-                                <i class="fas fa-sync-alt mr-2"></i> FORZA SINCRONIZZAZIONE
-                            </button>
-                        </div>`;
+                if (GLOBAL_DATA.servizi.length === 0) {
+                    document.getElementById('loader-overlay').innerHTML = `<button onclick="syncData()" class="p-4 bg-red-600 text-white rounded font-bold">Inizializza Database</button>`;
                     return;
                 }
-    
+
                 initFilterMenus();
                 renderStrutture(GLOBAL_DATA.strutture || []);
                 renderServices(GLOBAL_DATA.servizi || []);
                 document.getElementById('loader-overlay').style.display = 'none';
-            } catch (e) {
-                console.error("Errore caricamento:", e);
-            }
+            } catch (e) { console.error(e); }
         }
-    
+
         async function syncData() {
             const btn = document.getElementById('sync-btn');
             const icon = document.getElementById('sync-icon');
             btn.disabled = true; icon.classList.add('fa-spin');
-            
             try {
                 const res = await fetch('/.netlify/functions/get-data?force=true');
                 GLOBAL_DATA = await res.json();
-                renderServices(GLOBAL_DATA.servizi || []);
-                renderStrutture(GLOBAL_DATA.strutture || []);
+                renderServices(GLOBAL_DATA.servizi);
+                renderStrutture(GLOBAL_DATA.strutture);
                 initFilterMenus();
                 document.getElementById('loader-overlay').style.display = 'none';
-            } catch (e) { alert("Errore durante la sincronizzazione."); }
+            } catch (e) { alert("Errore sync"); }
             finally { btn.disabled = false; icon.classList.remove('fa-spin'); }
         }
-    
+
         function initFilterMenus() {
             const args = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.tags || []))].filter(Boolean).sort();
             const dests = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.addressee || []))].filter(Boolean).sort();
+            const structs = [...new Set((GLOBAL_DATA.flatStrutture || []).map(st => st.name))].filter(Boolean).sort();
+            
             renderChecklist('menu-argomenti', args, 'argomenti');
             renderChecklist('menu-destinatari', dests, 'destinatari');
+            renderChecklist('menu-strutture', structs, 'strutture');
         }
-    
+
         function renderChecklist(id, items, cat) {
             document.getElementById(id).innerHTML = items.map(item => `
                 <label class="flex items-start gap-3 p-2 hover:bg-gray-50 cursor-pointer text-[11px]">
@@ -157,111 +153,102 @@
                     <span>${item}</span>
                 </label>`).join('');
         }
-    
+
         function getServiceCardHtml(s) {
             const tags = s.tags || [];
             const addressee = s.addressee || [];
             return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col relative hover:border-red-200 transition-all hover:shadow-md group h-full">
-                    <a href="${s.url}" target="_blank" title="Vai al servizio" class="absolute top-4 right-4 text-red-600 hover:text-red-800 transition-transform group-hover:scale-110">
+                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col relative hover:border-red-200 transition-all hover:shadow-md group">
+                    <a href="${s.url}" target="_blank" class="absolute top-4 right-4 text-red-600 hover:text-red-800 transition-transform group-hover:scale-110">
                         <i class="fas fa-external-link-alt text-lg"></i>
                     </a>
                     <div class="flex flex-wrap gap-1 mb-2 pr-8">
                         ${tags.slice(0,2).map(t => `<span class="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">${t}</span>`).join('')}
                     </div>
                     <h3 class="font-bold text-sm mb-2 leading-tight text-gray-900">${s.name}</h3>
-                    <div class="text-xs text-gray-500 desc-truncate flex-grow mb-4" id="ser-${s.id}">${s.desc || 'Nessuna descrizione disponibile.'}</div>
+                    <div class="text-xs text-gray-500 desc-truncate flex-grow mb-4" id="ser-${s.id}">${s.desc || 'Nessuna descrizione.'}</div>
                     
-                    <div class="pt-3 border-t border-gray-100 mt-auto">
-                        <p class="text-[9px] uppercase font-bold text-gray-400 mb-2 tracking-tighter">Destinatari</p>
-                        <div class="flex flex-wrap gap-1">
-                            ${addressee.length > 0 ? addressee.map(a => `<span class="text-[10px] px-2 py-0.5 bg-red-50 text-red-700 rounded border border-red-100">${a}</span>`).join('') : '<span class="text-[10px] text-gray-400 italic">Non specificato</span>'}
+                    <div class="space-y-3 pt-3 border-t border-gray-100">
+                        <div>
+                            <p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Destinatari</p>
+                            <div class="flex flex-wrap gap-1">
+                                ${addressee.map(a => `<span class="text-[10px] px-2 py-0.5 bg-red-50 text-red-700 rounded border border-red-100">${a}</span>`).join('')}
+                            </div>
                         </div>
                     </div>
                 </div>`;
         }
-    
+
         function createOfficeCard(n) {
             const contacts = n.contacts || [];
             const contactsHtml = contacts.length > 0 ? `
-                <div class="grid grid-cols-1 gap-1 mt-3 bg-gray-50 p-2 rounded text-[10px]">
-                    ${contacts.map(c => `<div class="truncate"><i class="fas ${getIcon(c.type)} w-4"></i> ${c.value}</div>`).join('')}
+                <div class="grid grid-cols-1 gap-1 mt-3 bg-gray-50 p-2 rounded text-[10px] border border-gray-100">
+                    ${contacts.map(c => `<div><i class="fas ${getIcon(c.type)} w-4 text-red-600"></i> ${c.value}</div>`).join('')}
                 </div>` : '';
+
+            const googleMapsUrl = n.addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n.addr + " Trento")}` : "#";
+
             return `
                 <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                     <span class="text-[9px] font-bold uppercase text-gray-400">${(n.type || [])[0] || 'Ufficio'}</span>
-                    <h3 class="font-bold text-gray-900 mb-1">${n.name}</h3>
+                    <h3 class="font-bold text-gray-900 mb-1 leading-tight">${n.name}</h3>
                     <div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || ''}</div>
                     <button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 uppercase mt-1">Leggi</button>
                     ${contactsHtml}
-                    <div class="mt-3 pt-2 border-t text-[10px] text-gray-400 italic">${n.addr || 'Indirizzo non disponibile'}</div>
+                    ${n.addr ? `
+                        <a href="${googleMapsUrl}" target="_blank" class="mt-4 flex items-center gap-2 text-[10px] text-gray-500 hover:text-red-600 transition-colors pt-3 border-t">
+                            <i class="fas fa-map-marker-alt text-red-600"></i>
+                            <span class="italic underline">${n.addr}</span>
+                        </a>` : ''}
                 </div>`;
         }
-    
+
         function renderStrutture(nodes, level = 0) {
             const container = document.getElementById('container-strutture');
             if (level === 0) container.innerHTML = '';
             const html = nodes.map(n => `
-                <div class="${level > 0 ? 'ml-6 border-l pl-4 mt-4' : 'mb-6'}">
+                <div class="${level > 0 ? 'ml-6 border-l pl-4 mt-4 border-gray-200' : 'mb-6'}">
                     ${createOfficeCard(n)}
                     ${n.children && n.children.length > 0 ? renderStruttureRecursive(n.children, level + 1) : ''}
                 </div>`).join('');
             if (level === 0) container.innerHTML = html;
             return html;
         }
-    
+
         function renderStruttureRecursive(nodes, level) {
-            return nodes.map(n => `
-                <div class="ml-6 border-l pl-4 mt-4">
-                    ${createOfficeCard(n)}
-                    ${n.children && n.children.length > 0 ? renderStruttureRecursive(n.children, level + 1) : ''}
-                </div>`).join('');
+            return nodes.map(n => `<div class="ml-6 border-l pl-4 mt-4 border-gray-200">${createOfficeCard(n)}${n.children ? renderStruttureRecursive(n.children, level + 1) : ''}</div>`).join('');
         }
-    
+
         function renderServices(items) {
             document.getElementById('grid-servizi').innerHTML = items.map(s => getServiceCardHtml(s)).join('');
         }
-    
+
         function applyAllFilters() {
-            const q = document.getElementById('searchInput').value.toLowerCase().trim();
+            const q = document.getElementById('searchInput').value.toLowerCase();
             const fServ = GLOBAL_DATA.servizi.filter(s => {
-                const mSearch = (s.name || "").toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q) || (s.addressee || []).some(a => a.toLowerCase().includes(q));
-                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || (s.tags || []).some(t => ACTIVE_FILTERS.argomenti.includes(t));
-                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || (s.addressee || []).some(t => ACTIVE_FILTERS.destinatari.includes(t));
+                const mSearch = s.name.toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q);
+                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
+                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || s.addressee.some(t => ACTIVE_FILTERS.destinatari.includes(t));
+                // Filtro struttura (se implementato nei dati dei servizi)
                 return mSearch && mArg && mDest;
             });
             renderServices(fServ);
-    
-            const fOff = (GLOBAL_DATA.flatStrutture || []).filter(o => (o.name || "").toLowerCase().includes(q));
-            if (q !== "") {
+
+            const fOff = (GLOBAL_DATA.flatStrutture || []).filter(o => {
+                const mSearch = o.name.toLowerCase().includes(q);
+                const mStruct = ACTIVE_FILTERS.strutture.length === 0 || ACTIVE_FILTERS.strutture.includes(o.name);
+                return mSearch && mStruct;
+            });
+
+            if (q !== "" || ACTIVE_FILTERS.strutture.length > 0) {
                 document.getElementById('container-strutture').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${fOff.map(o => createOfficeCard(o)).join('')}</div>`;
             } else {
                 renderStrutture(GLOBAL_DATA.strutture || []);
             }
         }
-    
-        function initMap() {
-            if (mapInstance) { mapInstance.invalidateSize(); return; }
-            mapInstance = L.map('map-view').setView([46.0697, 11.1211], 9);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance);
-            const icon = L.divIcon({ className: '', html: '<div class="custom-marker"><i class="fas fa-building"></i></div>', iconSize: [30, 30], iconAnchor: [15, 30] });
-            (GLOBAL_DATA.sportelli || []).forEach(p => {
-                if(p.lat && p.lng) {
-                    L.marker([p.lat, p.lng], { icon }).addTo(mapInstance).bindPopup(`<b>${p.name}</b><br><small>${p.addr}</small>`);
-                }
-            });
-        }
-    
-        function handleSearch(v) {
-            document.getElementById('clearSearch').classList.toggle('hidden', v.length === 0);
-            applyAllFilters();
-        }
-    
-        function clearSearch() {
-            document.getElementById('searchInput').value = "";
-            handleSearch("");
-        }
-    
+
+        function handleSearch(v) { applyAllFilters(); }
+
         function updateFilter(cat, val) {
             const i = ACTIVE_FILTERS[cat].indexOf(val);
             if (i > -1) ACTIVE_FILTERS[cat].splice(i, 1); else ACTIVE_FILTERS[cat].push(val);
@@ -269,44 +256,41 @@
             document.getElementById(`count-${cat}`).classList.toggle('hidden', ACTIVE_FILTERS[cat].length === 0);
             applyAllFilters();
         }
-    
-        function toggleText(id, btn) {
-            const el = document.getElementById(id);
-            if(!el) return;
-            const isEx = el.classList.toggle('desc-expanded');
-            btn.innerText = isEx ? 'CHIUDI' : 'LEGGI';
-        }
-    
+
         function getIcon(t) {
-            const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield' };
+            const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield-halved', fax: 'fa-fax' };
             return m[(t || "").toLowerCase()] || 'fa-info-circle';
         }
-    
+
         function toggleDropdown(id) {
             const el = document.getElementById(id);
             const isHidden = el.classList.contains('hidden');
             document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden'));
             if(isHidden) el.classList.remove('hidden');
         }
-    
+
         function switchTab(t) {
             document.querySelectorAll('.tab-content, .nav-link').forEach(e => e.classList.remove('active'));
             document.getElementById('view-'+t).classList.add('active');
             document.getElementById('btn-'+t).classList.add('active');
-            if(t === 'mappa') setTimeout(initMap, 100);
         }
-    
+
+        function toggleText(id, btn) {
+            const el = document.getElementById(id);
+            const isEx = el.classList.toggle('desc-expanded');
+            btn.innerText = isEx ? 'CHIUDI' : 'LEGGI';
+        }
+
         function resetFilters() {
-            ACTIVE_FILTERS = { argomenti: [], destinatari: [] };
+            ACTIVE_FILTERS = { argomenti: [], strutture: [], destinatari: [] };
             document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
             document.querySelectorAll('[id^="count-"]').forEach(b => b.classList.add('hidden'));
             document.getElementById('searchInput').value = "";
             applyAllFilters();
         }
-    
+
         window.onload = loadData;
         window.onclick = (e) => { if (!e.target.closest('.dropdown-container')) document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden')); };
     </script>
 </body>
 </html>
-
