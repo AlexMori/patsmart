@@ -1,78 +1,75 @@
+const { getStore } = require('@netlify/blobs');
 const axios = require('axios');
 
-let cache = null;
-let lastFetch = 0;
-const CACHE_DURATION = 6 * 60 * 60 * 1000; 
-
 exports.handler = async (event, context) => {
-    const now = Date.now();
-    if (cache && (now - lastFetch < CACHE_DURATION)) {
-        return { statusCode: 200, body: JSON.stringify(cache) };
-    }
+    const store = getStore('pat_data_store');
+    
+    let persistedData = await store.get('global_cache', { type: 'json' }) || { 
+        servizi: [], strutture: [], flatStrutture: [], sportelli: [],
+        nextServizi: "https://www.provincia.tn.it/api/openapi/servizi",
+        nextStrutture: "https://www.provincia.tn.it/api/openapi/amministrazione/strutture-organizzative",
+        lastUpdate: 0
+    };
 
+    const now = Date.now();
+    const isCron = event.headers['user-agent']?.includes('cron') || event.queryStringParameters.force === 'true';
+
+    if (!isCron && persistedData.servizi.length > 0) {
+        return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(persistedData)
+        };
+    }
+    
     try {
-        const fastFetch = async (url) => {
-            const res = await axios.get(url, { timeout: 8000 });
-            return res.data;
+        const fetchBatch = async (startUrl, limit = 3) => {
+            let items = [];
+            let next = startUrl;
+            for (let i = 0; i < limit && next; i++) {
+                const res = await axios.get(next, { timeout: 8000 });
+                items = items.concat(res.data.items || []);
+                next = res.data.next || null;
+            }
+            return { items, next };
         };
 
-        const [serviziData, struttureData, contattiData] = await Promise.all([
-            fastFetch("https://www.provincia.tn.it/api/openapi/servizi"),
-            fastFetch("https://www.provincia.tn.it/api/openapi/amministrazione/strutture-organizzative"),
-            fastFetch("https://www.provincia.tn.it/api/openapi/media/classificazioni/punti-di-contatto")
-        ]);
+        if (persistedData.nextServizi) {
+            const batch = await fetchBatch(persistedData.nextServizi);
+            persistedData.servizi = [...new Map([...persistedData.servizi, ...batch.items].map(item => [item.id, item])).values()];
+            persistedData.nextServizi = batch.next;
+        }
 
-        const contactMap = {};
-        (contattiData.items || []).forEach(i => {
-            contactMap[i.id.replace('contactpoint', '')] = i.contact || [];
-        });
+        if (persistedData.nextStrutture) {
+            const batch = await fetchBatch(persistedData.nextStrutture);
+            
+            const processedItems = batch.items.map(s => {
+                let lat = null, lng = null, address = "Indirizzo non disponibile";
+                if (s.has_spatial_coverage?.[0]?.has_address) {
+                    const addr = s.has_spatial_coverage[0].has_address;
+                    lat = parseFloat(addr.latitude); lng = parseFloat(addr.longitude);
+                    address = addr.address || address;
+                }
+                return { ...s, lat, lng, address };
+            });
 
-        const flatStrutture = (struttureData.items || []).map(s => ({
-            id: s.id,
-            name: s.legal_name || s.name || "Ufficio",
-            type: s.type || [],
-            desc: s.main_function || s.description || "",
-            portalUrl: s.uri ? "https://www.provincia.tn.it/Amministrazione/Strutture-organizzative/" + s.uri.split("#")[1] : "#",
-            parentId: s.is_support_unit_of?.[0]?.id || null,
-            contacts: contactMap[s.id.replace('structure', '')] || [],
-            addr: "Consultare portale per indirizzo",
-            children: []
-        }));
+            persistedData.flatStrutture = [...new Map([...persistedData.flatStrutture, ...processedItems].map(item => [item.id, item])).values()];
+            persistedData.nextStrutture = batch.next;
+        }
 
-        const lookup = {};
-        flatStrutture.forEach(obj => lookup[obj.id] = obj);
-        const tree = flatStrutture.filter(obj => {
-            if (obj.parentId && lookup[obj.parentId]) {
-                lookup[obj.parentId].children.push(obj);
-                return false;
-            }
-            return true;
-        });
+        if (!persistedData.nextServizi && !persistedData.nextStrutture) {
+            persistedData.lastUpdate = now;
+        }
 
-        const servizi = (serviziData.items || []).map(s => ({
-            id: s.id,
-            name: s.name,
-            desc: s.description || "",
-            tags: s.type || [],
-            addressee: s.addressee || [],
-            url: s.uri ? "https://www.provincia.tn.it/Servizi/" + s.uri.split("#")[1] : "#",
-            officeIds: (s.holds_role_in_time || []).map(r => r.id)
-        }));
-
-        cache = { strutture: tree, flatStrutture, servizi, sportelli: [] };
-        lastFetch = now;
+        await store.setJSON('global_cache', persistedData);
 
         return {
             statusCode: 200,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify(cache)
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(persistedData)
         };
 
     } catch (error) {
-        console.error("Errore Fetch:", error.message);
-        return { 
-            statusCode: 500, 
-            body: JSON.stringify({ error: "Le API Trentino sono lente. Riprova." }) 
-        };
+        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
