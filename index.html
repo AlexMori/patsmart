@@ -3,294 +3,242 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PATSmart - Dashboard Istituzionale</title>
+    <title>PatSmart - Servizi PAT</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .nav-link.active { color: #dc2626; border-bottom: 2px solid #dc2626; background-color: #fef2f2; }
+        #map-view { height: 600px; width: 100%; border-radius: 1rem; z-index: 1; }
         .desc-truncate { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-        .desc-expanded { -webkit-line-clamp: unset !important; display: block !important; }
+        .desc-expanded { -webkit-line-clamp: unset !important; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .nav-link.active { border-bottom: 2px solid #ef4444; color: #ef4444; }
+        .custom-marker { background: #ef4444; color: white; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .custom-marker i { transform: rotate(45deg); font-size: 12px; }
         #loader-overlay { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
-<body class="bg-gray-50 text-slate-800">
+<body class="bg-gray-50 font-sans">
 
     <div id="loader-overlay">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-red-600 mb-4"></div>
-        <h2 class="text-xl font-bold">Configurazione in corso...</h2>
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600 mb-4"></div>
+        <p class="text-gray-500 font-medium">Caricamento...</p>
     </div>
 
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 py-3">
-            <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
-                    <div class="bg-red-700 text-white w-10 h-10 flex items-center justify-center rounded-lg font-bold text-xl">TN</div>
-                    <div>
-                        <h1 class="font-bold text-xl leading-tight">PAT<span class="text-red-600">Smart</span></h1>
-                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Open Data Browser</p>
-                    </div>
-                </div>
-
-                <div class="relative w-full md:w-1/3">
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h1 class="text-2xl font-black text-red-600 tracking-tighter">PAT<span class="text-gray-900">SMART</span></h1>
+                <div class="relative flex-1 max-w-2xl">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    <input type="text" id="searchInput" onkeyup="handleSearch(this.value)" 
-                           placeholder="Cerca uffici, servizi o destinatari..." 
-                           class="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white outline-none">
+                    <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Cerca servizi o uffici..." class="w-full pl-12 pr-12 py-3 bg-gray-100 border-none rounded-xl focus:ring-2 focus:ring-red-500 transition-all">
+                    <button id="clearSearch" onclick="clearSearch()" class="hidden absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><i class="fas fa-times-circle"></i></button>
                 </div>
-
-                <nav class="flex gap-1 bg-gray-100 p-1 rounded-lg">
-                    <button onclick="switchTab('strutture')" id="btn-strutture" class="nav-link active px-4 py-1.5 font-bold text-xs rounded-md">Uffici</button>
-                    <button onclick="switchTab('servizi')" id="btn-servizi" class="nav-link px-4 py-1.5 font-bold text-xs rounded-md">Servizi</button>
-                    <button onclick="switchTab('mappa')" id="btn-mappa" class="nav-link px-4 py-1.5 font-bold text-xs rounded-md">Mappa</button>
-                </nav>
             </div>
-        </div>
-
-        <div class="bg-gray-50 border-t border-gray-200">
-            <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap gap-2 items-center">
-                <div class="relative dropdown-container">
-                    <button onclick="toggleDropdown('menu-argomenti')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
-                        Argomenti <span id="count-argomenti" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
-                    </button>
-                    <div id="menu-argomenti" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
+            <div class="flex flex-wrap items-center gap-3 mt-4">
+                <div class="dropdown-container relative">
+                    <button onclick="toggleDropdown('menu-argomenti')" class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2">Argomenti <span id="count-argomenti" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span></button>
+                    <div id="menu-argomenti" class="hidden absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 shadow-xl rounded-xl z-50 max-h-80 overflow-y-auto p-2"></div>
                 </div>
-
-                <div class="relative dropdown-container">
-                    <button onclick="toggleDropdown('menu-strutture')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
-                        Strutture <span id="count-strutture" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
-                    </button>
-                    <div id="menu-strutture" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
+                <div class="dropdown-container relative">
+                    <button onclick="toggleDropdown('menu-destinatari')" class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2">Destinatari <span id="count-destinatari" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span></button>
+                    <div id="menu-destinatari" class="hidden absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 shadow-xl rounded-xl z-50 max-h-80 overflow-y-auto p-2"></div>
                 </div>
-                
-                <div class="relative dropdown-container">
-                    <button onclick="toggleDropdown('menu-destinatari')" class="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold flex items-center gap-2">
-                        Destinatari <span id="count-destinatari" class="hidden bg-red-600 text-white px-1.5 rounded-full text-[10px]">0</span> <i class="fas fa-chevron-down text-[10px]"></i>
-                    </button>
-                    <div id="menu-destinatari" class="hidden absolute top-full left-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
-                </div>
-
-                <button onclick="resetFilters()" class="ml-auto text-[10px] font-bold text-red-600 uppercase">Reset</button>
-                <button onclick="syncData()" id="sync-btn" class="ml-4 px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center gap-2">
-                    <i class="fas fa-sync-alt" id="sync-icon"></i> SYNC
-                </button>
+                <button onclick="resetFilters()" class="text-xs font-bold text-gray-400 hover:text-red-600 uppercase">Reset</button>
+                <div id="result-count" class="ml-auto text-sm font-bold text-gray-500 italic"></div>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto p-4 md:p-6 min-h-screen">
-        <section id="view-strutture" class="tab-content active">
-            <div id="container-strutture" class="space-y-6"></div>
-        </section>
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 flex gap-8">
+            <button id="btn-elenco" onclick="switchTab('elenco')" class="nav-link active py-4 font-bold text-sm uppercase tracking-widest">Servizi</button>
+            <button id="btn-strutture" onclick="switchTab('strutture')" class="nav-link py-4 font-bold text-sm uppercase tracking-widest">Uffici</button>
+            <button id="btn-mappa" onclick="switchTab('mappa')" class="nav-link py-4 font-bold text-sm uppercase tracking-widest">Mappa</button>
+        </div>
+    </nav>
 
-        <section id="view-servizi" class="tab-content">
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div id="view-elenco" class="tab-content active">
             <div id="grid-servizi" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-        </section>
-
-        <section id="view-mappa" class="tab-content">
-            <div id="map-view" class="h-[600px] rounded-xl shadow-inner border"></div>
-        </section>
+        </div>
+        <div id="view-strutture" class="tab-content">
+            <div id="container-strutture" class="max-w-4xl mx-auto"></div>
+        </div>
+        <div id="view-mappa" class="tab-content">
+            <div id="map-view"></div>
+        </div>
     </main>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        const ENDPOINTS = {
+            servizi: "https://www.provincia.tn.it/api/openapi/servizi",
+            strutture: "https://www.provincia.tn.it/api/openapi/amministrazione/strutture-organizzative",
+            contatti: "https://www.provincia.tn.it/api/openapi/media/classificazioni/punti-di-contatto"
+        };
+
         let GLOBAL_DATA = { servizi: [], strutture: [], flatStrutture: [], sportelli: [] };
-        let ACTIVE_FILTERS = { argomenti: [], strutture: [], destinatari: [] };
+        let ACTIVE_FILTERS = { argomenti: [], uffici: [], destinatari: [] };
         let mapInstance = null;
 
+        const slugify = (t) => t ? t.toString().toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w\-]+/g, '').replace(/\-\-+/g, '-') : "";
+
+        const fetchJSON = async (url) => { try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch(e) { return null; } };
+
         async function loadData() {
-            try {
-                const response = await fetch('/.netlify/functions/get-data');
-                const data = await response.json();
-                GLOBAL_DATA = data;
-                
-                if (GLOBAL_DATA.servizi.length === 0) {
-                    document.getElementById('loader-overlay').innerHTML = `<button onclick="syncData()" class="p-4 bg-red-600 text-white rounded font-bold">Inizializza Database</button>`;
-                    return;
+            const [servRaw, structRaw, contRaw] = await Promise.all([ fetchJSON(ENDPOINTS.servizi), fetchJSON(ENDPOINTS.strutture), fetchJSON(ENDPOINTS.contatti) ]);
+            const contactMap = {};
+            (contRaw?.items || []).forEach(i => contactMap[i.id.replace('contactpoint','')] = i.contact || []);
+
+            const items = structRaw?.items || [];
+            let flat = [];
+            let points = [];
+
+            for (let s of items) {
+                let obj = {
+                    id: s.id, name: s.legal_name || s.name || "Ufficio", type: s.type || [],
+                    desc: s.main_function || s.description || "",
+                    portalUrl: "https://www.provincia.tn.it/Amministrazione/Strutture-organizzative/" + slugify(s.legal_name || s.name),
+                    parentId: s.is_support_unit_of?.[0]?.id || null,
+                    addr: "Indirizzo non disponibile", coords: null, contacts: contactMap[s.id.replace('structure','')] || [],
+                    children: []
+                };
+                if (s.has_spatial_coverage?.[0]) {
+                    const p = await fetchJSON(s.has_spatial_coverage[0].uri);
+                    if (p?.has_address) {
+                        obj.addr = p.has_address.address;
+                        if (p.has_address.latitude) {
+                            obj.coords = { lat: parseFloat(p.has_address.latitude), lng: parseFloat(p.has_address.longitude) };
+                            points.push({ name: obj.name, addr: obj.addr, ...obj.coords });
+                        }
+                    }
                 }
+                flat.push(obj);
+            }
 
-                initFilterMenus();
-                renderStrutture(GLOBAL_DATA.strutture || []);
-                renderServices(GLOBAL_DATA.servizi || []);
-                document.getElementById('loader-overlay').style.display = 'none';
-            } catch (e) { console.error(e); }
-        }
+            const services = (servRaw?.items || []).map(s => ({
+                id: s.id, name: s.name, desc: s.description || "",
+                tags: s.type || [], addressee: s.addressee || [],
+                url: "https://www.provincia.tn.it/Servizi/" + slugify(s.name),
+                officeIds: (s.holds_role_in_time || []).map(r => r.id)
+            }));
 
-        async function syncData() {
-            const btn = document.getElementById('sync-btn');
-            const icon = document.getElementById('sync-icon');
-            btn.disabled = true; icon.classList.add('fa-spin');
-            try {
-                const res = await fetch('/.netlify/functions/get-data?force=true');
-                GLOBAL_DATA = await res.json();
-                renderServices(GLOBAL_DATA.servizi);
-                renderStrutture(GLOBAL_DATA.strutture);
-                initFilterMenus();
-                document.getElementById('loader-overlay').style.display = 'none';
-            } catch (e) { alert("Errore sync"); }
-            finally { btn.disabled = false; icon.classList.remove('fa-spin'); }
+            const lookup = {}; flat.forEach(o => lookup[o.id] = o);
+            const tree = []; flat.forEach(o => { if (o.parentId && lookup[o.parentId]) lookup[o.parentId].children.push(o); else tree.push(o); });
+
+            GLOBAL_DATA = { strutture: tree, flatStrutture: flat, servizi: services, sportelli: points };
+            initFilterMenus();
+            applyAllFilters();
+            document.getElementById('loader-overlay').style.display = 'none';
         }
 
         function initFilterMenus() {
-            const args = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.tags || []))].filter(Boolean).sort();
-            const dests = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.addressee || []))].filter(Boolean).sort();
-            const structs = [...new Set((GLOBAL_DATA.flatStrutture || []).map(st => st.name))].filter(Boolean).sort();
-            
+            const args = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.tags))].sort();
+            const dests = [...new Set(GLOBAL_DATA.servizi.flatMap(s => s.addressee))].sort();
             renderChecklist('menu-argomenti', args, 'argomenti');
             renderChecklist('menu-destinatari', dests, 'destinatari');
-            renderChecklist('menu-strutture', structs, 'strutture');
         }
 
         function renderChecklist(id, items, cat) {
             document.getElementById(id).innerHTML = items.map(item => `
-                <label class="flex items-start gap-3 p-2 hover:bg-gray-50 cursor-pointer text-[11px]">
-                    <input type="checkbox" onchange="updateFilter('${cat}', '${item.replace(/'/g, "\\'")}')" class="rounded text-red-600">
-                    <span>${item}</span>
+                <label class="flex items-start gap-3 p-2.5 hover:bg-red-50 rounded-lg cursor-pointer text-[11px] font-medium border-b border-gray-50 last:border-0">
+                    <input type="checkbox" onchange="updateFilter('${cat}', '${item.replace(/'/g, "\\'")}')" class="rounded text-red-600 w-4 h-4 mt-0.5">
+                    <span class="leading-tight text-gray-700">${item}</span>
                 </label>`).join('');
         }
-
-        function getServiceCardHtml(s) {
-            const tags = s.tags || [];
-            const addressee = s.addressee || [];
-            return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col relative hover:border-red-200 transition-all hover:shadow-md group">
-                    <a href="${s.url}" target="_blank" class="absolute top-4 right-4 text-red-600 hover:text-red-800 transition-transform group-hover:scale-110">
-                        <i class="fas fa-external-link-alt text-lg"></i>
-                    </a>
-                    <div class="flex flex-wrap gap-1 mb-2 pr-8">
-                        ${tags.slice(0,2).map(t => `<span class="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">${t}</span>`).join('')}
-                    </div>
-                    <h3 class="font-bold text-sm mb-2 leading-tight text-gray-900">${s.name}</h3>
-                    <div class="text-xs text-gray-500 desc-truncate flex-grow mb-4" id="ser-${s.id}">${s.desc || 'Nessuna descrizione.'}</div>
-                    
-                    <div class="space-y-3 pt-3 border-t border-gray-100">
-                        <div>
-                            <p class="text-[9px] uppercase font-bold text-gray-400 mb-1">Destinatari</p>
-                            <div class="flex flex-wrap gap-1">
-                                ${addressee.map(a => `<span class="text-[10px] px-2 py-0.5 bg-red-50 text-red-700 rounded border border-red-100">${a}</span>`).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-        }
-
-        function createOfficeCard(n) {
-            const contacts = n.contacts || [];
-            const contactsHtml = contacts.length > 0 ? `
-                <div class="grid grid-cols-1 gap-1 mt-3 bg-gray-50 p-2 rounded text-[10px] border border-gray-100">
-                    ${contacts.map(c => `<div><i class="fas ${getIcon(c.type)} w-4 text-red-600"></i> ${c.value}</div>`).join('')}
-                </div>` : '';
-
-            const googleMapsUrl = n.addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n.addr + " Trento")}` : "#";
-
-            return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                    <span class="text-[9px] font-bold uppercase text-gray-400">${(n.type || [])[0] || 'Ufficio'}</span>
-                    <h3 class="font-bold text-gray-900 mb-1 leading-tight">${n.name}</h3>
-                    <div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || ''}</div>
-                    <button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 uppercase mt-1">Leggi</button>
-                    ${contactsHtml}
-                    ${n.addr ? `
-                        <a href="${googleMapsUrl}" target="_blank" class="mt-4 flex items-center gap-2 text-[10px] text-gray-500 hover:text-red-600 transition-colors pt-3 border-t">
-                            <i class="fas fa-map-marker-alt text-red-600"></i>
-                            <span class="italic underline">${n.addr}</span>
-                        </a>` : ''}
-                </div>`;
-        }
-
-        function renderStrutture(nodes, level = 0) {
-            const container = document.getElementById('container-strutture');
-            if (level === 0) container.innerHTML = '';
-            const html = nodes.map(n => `
-                <div class="${level > 0 ? 'ml-6 border-l pl-4 mt-4 border-gray-200' : 'mb-6'}">
-                    ${createOfficeCard(n)}
-                    ${n.children && n.children.length > 0 ? renderStruttureRecursive(n.children, level + 1) : ''}
-                </div>`).join('');
-            if (level === 0) container.innerHTML = html;
-            return html;
-        }
-
-        function renderStruttureRecursive(nodes, level) {
-            return nodes.map(n => `<div class="ml-6 border-l pl-4 mt-4 border-gray-200">${createOfficeCard(n)}${n.children ? renderStruttureRecursive(n.children, level + 1) : ''}</div>`).join('');
-        }
-
-        function renderServices(items) {
-            document.getElementById('grid-servizi').innerHTML = items.map(s => getServiceCardHtml(s)).join('');
-        }
-
-        function applyAllFilters() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
-            const fServ = GLOBAL_DATA.servizi.filter(s => {
-                const mSearch = s.name.toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q);
-                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
-                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || s.addressee.some(t => ACTIVE_FILTERS.destinatari.includes(t));
-                // Filtro struttura (se implementato nei dati dei servizi)
-                return mSearch && mArg && mDest;
-            });
-            renderServices(fServ);
-
-            const fOff = (GLOBAL_DATA.flatStrutture || []).filter(o => {
-                const mSearch = o.name.toLowerCase().includes(q);
-                const mStruct = ACTIVE_FILTERS.strutture.length === 0 || ACTIVE_FILTERS.strutture.includes(o.name);
-                return mSearch && mStruct;
-            });
-
-            if (q !== "" || ACTIVE_FILTERS.strutture.length > 0) {
-                document.getElementById('container-strutture').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${fOff.map(o => createOfficeCard(o)).join('')}</div>`;
-            } else {
-                renderStrutture(GLOBAL_DATA.strutture || []);
-            }
-        }
-
-        function handleSearch(v) { applyAllFilters(); }
 
         function updateFilter(cat, val) {
             const i = ACTIVE_FILTERS[cat].indexOf(val);
             if (i > -1) ACTIVE_FILTERS[cat].splice(i, 1); else ACTIVE_FILTERS[cat].push(val);
-            document.getElementById(`count-${cat}`).innerText = ACTIVE_FILTERS[cat].length;
-            document.getElementById(`count-${cat}`).classList.toggle('hidden', ACTIVE_FILTERS[cat].length === 0);
+            const badge = document.getElementById(`count-${cat}`);
+            badge.innerText = ACTIVE_FILTERS[cat].length;
+            badge.classList.toggle('hidden', ACTIVE_FILTERS[cat].length === 0);
             applyAllFilters();
         }
 
-        function getIcon(t) {
-            const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield-halved', fax: 'fa-fax' };
-            return m[(t || "").toLowerCase()] || 'fa-info-circle';
+        function applyAllFilters() {
+            const q = document.getElementById('searchInput').value.toLowerCase().trim();
+            const fServ = GLOBAL_DATA.servizi.filter(s => {
+                const mSearch = s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q);
+                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
+                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || s.addressee.some(t => ACTIVE_FILTERS.destinatari.includes(t));
+                return mSearch && mArg && mDest;
+            });
+            const fOff = GLOBAL_DATA.flatStrutture.filter(o => o.name.toLowerCase().includes(q));
+            
+            renderServices(fServ);
+            if (q === "") renderStrutture(GLOBAL_DATA.strutture); else renderStruttureList(fOff);
+            
+            const activeTab = document.querySelector('.nav-link.active').id;
+            document.getElementById('result-count').innerText = activeTab === 'btn-elenco' ? `Risultati: ${fServ.length}` : `Risultati: ${fOff.length}`;
         }
 
-        function toggleDropdown(id) {
-            const el = document.getElementById(id);
-            const isHidden = el.classList.contains('hidden');
-            document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden'));
-            if(isHidden) el.classList.remove('hidden');
+        function renderServices(items) {
+            document.getElementById('grid-servizi').innerHTML = items.map(s => {
+                const off = GLOBAL_DATA.flatStrutture.find(o => s.officeIds.includes(o.id));
+                return `
+                <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
+                    <div class="flex flex-wrap gap-1 mb-2">${s.tags.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}</div>
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-bold text-gray-900 leading-tight">${s.name}</h3>
+                        <a href="${s.url}" target="_blank" class="text-red-600"><i class="fas fa-external-link-alt"></i></a>
+                    </div>
+                    <div class="text-xs text-gray-500 desc-truncate mb-4" id="ser-${s.id}">${s.desc}</div>
+                    <button onclick="toggleText('ser-${s.id}', this)" class="text-[10px] font-bold text-red-600 mb-4 text-left uppercase">Dettagli</button>
+                    ${off ? `<div class="mt-auto pt-4 border-t border-gray-100 flex items-center gap-2 text-[10px] text-gray-400"><i class="fas fa-map-marker-alt text-red-400"></i><span class="truncate">${off.addr}</span></div>` : ''}
+                </div>`;
+            }).join('');
         }
 
+        function createOfficeCard(n) {
+            return `<div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col mb-4">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex flex-wrap gap-1">${n.type.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-gray-100 text-gray-400 rounded">${t}</span>`).join('')}</div>
+                    <a href="${n.portalUrl}" target="_blank" class="text-red-600"><i class="fas fa-external-link-alt"></i></a>
+                </div>
+                <h3 class="font-bold text-gray-900 mb-2 leading-tight">${n.name}</h3>
+                <div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || '...'}</div>
+                <button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 mt-2 text-left uppercase">Dettagli</button>
+                <div class="mt-4 pt-4 border-t border-gray-50 flex items-center gap-2 text-[10px] text-gray-400"><i class="fas fa-map-marker-alt text-red-400"></i><span class="truncate">${n.addr}</span></div>
+            </div>`;
+        }
+
+        function renderStrutture(nodes, l = 0) {
+            const container = document.getElementById('container-strutture');
+            if (l === 0) container.innerHTML = '';
+            const build = (items, level) => items.map(n => `<div class="${level > 0 ? 'ml-6 border-l-2 border-red-100 pl-6 mt-4' : 'mb-6'}">${createOfficeCard(n)}${build(n.children, level + 1)}</div>`).join('');
+            container.innerHTML = build(nodes, 0);
+        }
+
+        function renderStruttureList(list) { document.getElementById('container-strutture').innerHTML = list.map(o => createOfficeCard(o)).join(''); }
+        function toggleText(id, btn) { const el = document.getElementById(id); const isEx = el.classList.toggle('desc-expanded'); btn.innerText = isEx ? 'Meno' : 'Dettagli'; }
+        function toggleDropdown(id) { const el = document.getElementById(id); const hide = el.classList.contains('hidden'); document.querySelectorAll('.dropdown-container div').forEach(d => d.classList.add('hidden')); if(hide) el.classList.remove('hidden'); }
+        function handleSearch(q) { document.getElementById('clearSearch').classList.toggle('hidden', q.length === 0); applyAllFilters(); }
+        function clearSearch() { document.getElementById('searchInput').value = ""; handleSearch(""); }
+        function resetFilters() { ACTIVE_FILTERS = { argomenti: [], uffici: [], destinatari: [] }; document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false); document.querySelectorAll('[id^="count-"]').forEach(b => b.classList.add('hidden')); clearSearch(); }
+        
         function switchTab(t) {
             document.querySelectorAll('.tab-content, .nav-link').forEach(e => e.classList.remove('active'));
             document.getElementById('view-'+t).classList.add('active');
             document.getElementById('btn-'+t).classList.add('active');
-        }
-
-        function toggleText(id, btn) {
-            const el = document.getElementById(id);
-            const isEx = el.classList.toggle('desc-expanded');
-            btn.innerText = isEx ? 'CHIUDI' : 'LEGGI';
-        }
-
-        function resetFilters() {
-            ACTIVE_FILTERS = { argomenti: [], strutture: [], destinatari: [] };
-            document.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
-            document.querySelectorAll('[id^="count-"]').forEach(b => b.classList.add('hidden'));
-            document.getElementById('searchInput').value = "";
             applyAllFilters();
+            if(t === 'mappa') setTimeout(initMap, 200);
         }
 
+        function initMap() {
+            if (mapInstance) { mapInstance.invalidateSize(); return; }
+            mapInstance = L.map('map-view').setView([46.06, 11.12], 10);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance);
+            const icon = L.divIcon({ className: '', html: '<div class="custom-marker"><i class="fas fa-building"></i></div>', iconSize: [35, 35], iconAnchor: [17, 35] });
+            GLOBAL_DATA.sportelli.forEach(p => {
+                L.marker([p.lat, p.lng], { icon }).addTo(mapInstance).bindPopup(`<div class="p-1"><b>${p.name}</b><br><small>${p.addr}</small></div>`);
+            });
+        }
+
+        window.onclick = (e) => { if (!e.target.closest('.dropdown-container')) document.querySelectorAll('.dropdown-container div').forEach(d => d.classList.add('hidden')); };
         window.onload = loadData;
-        window.onclick = (e) => { if (!e.target.closest('.dropdown-container')) document.querySelectorAll('.dropdown-container > div').forEach(d => d.classList.add('hidden')); };
     </script>
 </body>
 </html>
