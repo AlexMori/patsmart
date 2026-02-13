@@ -83,7 +83,10 @@
                     <div id="menu-destinatari" class="hidden absolute top-full left-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] max-h-80 overflow-y-auto p-2"></div>
                 </div>
 
-                <button onclick="resetFilters()" class="ml-auto text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Filtri</button>
+                <div class="ml-auto flex items-center gap-4">
+                    <span id="results-counter" class="text-[10px] font-bold text-gray-500 uppercase italic"></span>
+                    <button onclick="resetFilters()" class="text-[10px] font-bold text-red-600 uppercase hover:underline">Reset Filtri</button>
+                </div>
             </div>
         </div>
     </header>
@@ -135,7 +138,7 @@
                     children: []
                 };
 
-               /* if (s.has_spatial_coverage?.[0]) {
+                /*if (s.has_spatial_coverage?.[0]) {
                     const p = await fetchJSON(s.has_spatial_coverage[0].uri);
                     if (p?.has_address) {
                         obj.addr = p.has_address.address;
@@ -144,7 +147,7 @@
                             points.push({ name: obj.name, addr: obj.addr, ...obj.coords });
                         }
                     }
-                } */
+                }*/
                 flat.push(obj);
             }
 
@@ -160,8 +163,7 @@
 
             GLOBAL_DATA = { strutture: tree, flatStrutture: flat, servizi: services, sportelli: points };
             initFilterMenus();
-            renderStrutture(GLOBAL_DATA.strutture);
-            renderServices(GLOBAL_DATA.servizi);
+            applyAllFilters();
             document.getElementById('loader-overlay').style.display = 'none';
         }
 
@@ -193,6 +195,8 @@
 
         function applyAllFilters() {
             const q = document.getElementById('searchInput').value.toLowerCase().trim();
+            const activeTab = document.querySelector('.nav-link.active').id;
+            
             const fServ = GLOBAL_DATA.servizi.filter(s => {
                 const mSearch = s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q);
                 const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
@@ -210,6 +214,10 @@
             renderServices(fServ);
             if (q === "" && ACTIVE_FILTERS.uffici.length === 0) renderStrutture(GLOBAL_DATA.strutture);
             else renderStruttureList(fOff);
+
+            // Aggiornamento Contatore
+            const count = (activeTab === 'btn-servizi') ? fServ.length : fOff.length;
+            document.getElementById('results-counter').innerText = `(${count}) elementi trovati`;
         }
 
         function renderServices(items) {
@@ -228,7 +236,7 @@
 
         function createOfficeCard(n) {
             const contacts = n.contacts.length > 0 ? `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 my-4 bg-gray-50 p-3 rounded-xl border border-gray-100">${n.contacts.map(c => `<div class="flex items-center gap-2 text-[11px]"><i class="fas ${getIcon(c.type)} text-gray-300 w-3"></i><a href="${c.type.match(/email|pec/i) ? 'mailto:'+c.value : 'tel:'+c.value}" class="text-blue-600 truncate hover:underline font-medium">${c.value}</a></div>`).join('')}</div>` : '';
-            return `<div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col"><div class="flex justify-between items-start mb-2"><div class="flex flex-wrap gap-1">${n.type.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-gray-100 text-gray-400 rounded">${t}</span>`).join('')}</div><a href="${n.portalUrl}" target="_blank" class="text-red-600"><i class="fas fa-external-link-alt"></i></a></div><h3 class="font-bold text-gray-900 mb-2 leading-tight">${n.name}</h3><div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || 'Descrizione non disponibile.'}</div><button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 mt-2 text-left uppercase">Dettagli</button>${contacts}<div class="mt-auto pt-4 border-t border-gray-50 flex items-center gap-2 text-[10px] text-gray-400"><i class="fas fa-map-marker-alt text-red-400"></i><span class="truncate">${n.addr}</span></div></div>`;
+            return `<div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col"><div class="flex justify-between items-start mb-2"><div class="flex flex-wrap gap-1">${n.type.map(t => `<span class="text-[9px] font-black uppercase px-2 py-0.5 bg-gray-100 text-gray-400 rounded">${t}</span>`).join('')}</div><a href="${n.portalUrl}" target="_blank" class="text-red-600"><i class="fas fa-external-link-alt"></i></a></div><h3 class="font-bold text-gray-900 mb-2 leading-tight">${n.name}</h3><div class="text-xs text-gray-500 desc-truncate" id=\"off-${n.id}\">${n.desc || 'Descrizione non disponibile.'}</div><button onclick=\"toggleText('off-${n.id}', this)\" class=\"text-[10px] font-bold text-red-600 mt-2 text-left uppercase\">Dettagli</button>${contacts}<div class=\"mt-auto pt-4 border-t border-gray-50 flex items-center gap-2 text-[10px] text-gray-400\"><i class=\"fas fa-map-marker-alt text-red-400\"></i><span class=\"truncate\">${n.addr}</span></div></div>`;
         }
 
         function renderStrutture(nodes, l = 0) {
@@ -250,6 +258,7 @@
             document.querySelectorAll('.tab-content, .nav-link').forEach(e => e.classList.remove('active'));
             document.getElementById('view-'+t).classList.add('active');
             document.getElementById('btn-'+t).classList.add('active');
+            applyAllFilters();
             if(t === 'mappa') setTimeout(initMap, 200);
         }
 
