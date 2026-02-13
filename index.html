@@ -134,7 +134,7 @@
                 renderServices(GLOBAL_DATA.servizi);
                 document.getElementById('loader-overlay').style.display = 'none';
             } catch (e) {
-                document.getElementById('loader-overlay').innerHTML = `<div class="text-red-600 font-bold">Errore: ${e.message}</div>`;
+                document.getElementById('loader-overlay').innerHTML = `<div class="text-red-600 font-bold p-4 text-center">Errore critico: ${e.message}<br><button onclick="location.reload()" class="mt-2 text-xs underline">Riprova</button></div>`;
             }
         }
 
@@ -163,17 +163,18 @@
         }
 
         function createOfficeCard(n) {
-            const contacts = n.contacts.length > 0 ? `
+            const contactsList = n.contacts || [];
+            const contactsHtml = contactsList.length > 0 ? `
                 <div class="grid grid-cols-1 gap-1 mt-3 bg-gray-50 p-2 rounded text-[10px]">
-                    ${n.contacts.map(c => `<div class="truncate"><i class="fas ${getIcon(c.type)} w-4"></i> ${c.value}</div>`).join('')}
+                    ${contactsList.map(c => `<div class="truncate"><i class="fas ${getIcon(c.type)} w-4"></i> ${c.value}</div>`).join('')}
                 </div>` : '';
             return `
                 <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                    <span class="text-[9px] font-bold uppercase text-gray-400">${n.type[0] || 'Ufficio'}</span>
-                    <h3 class="font-bold text-gray-900 mb-1">${n.name}</h3>
+                    <span class="text-[9px] font-bold uppercase text-gray-400">${(n.type || [])[0] || 'Ufficio'}</span>
+                    <h3 class="font-bold text-gray-900 mb-1 leading-tight">${n.name}</h3>
                     <div class="text-xs text-gray-500 desc-truncate" id="off-${n.id}">${n.desc || ''}</div>
                     <button onclick="toggleText('off-${n.id}', this)" class="text-[10px] font-bold text-red-600 uppercase mt-1">Leggi</button>
-                    ${contacts}
+                    ${contactsHtml}
                     <div class="mt-3 pt-2 border-t text-[10px] text-gray-400 italic">${n.addr || 'Indirizzo non disponibile'}</div>
                 </div>`;
         }
@@ -204,27 +205,29 @@
         }
 
         function getServiceCardHtml(s) {
+            const tags = s.tags || [];
+            const addressee = s.addressee || [];
             return `
-                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col h-full">
                     <div class="flex flex-wrap gap-1 mb-2">
-                        ${s.tags.slice(0,2).map(t => `<span class="text-[9px] px-1 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}
+                        ${tags.slice(0,2).map(t => `<span class="text-[9px] px-1 bg-blue-50 text-blue-600 rounded">${t}</span>`).join('')}
                     </div>
-                    <h3 class="font-bold text-sm mb-2">${s.name}</h3>
-                    <div class="text-xs text-gray-500 desc-truncate flex-grow" id="ser-${s.id}">${s.desc}</div>
+                    <h3 class="font-bold text-sm mb-2 leading-snug">${s.name}</h3>
+                    <div class="text-xs text-gray-500 desc-truncate flex-grow" id="ser-${s.id}">${s.desc || ''}</div>
                     <button onclick="toggleText('ser-${s.id}', this)" class="text-[10px] font-bold text-red-600 mt-2 text-left">DETTAGLI</button>
-                    <a href="${s.url}" target="_blank" class="mt-3 block text-center bg-gray-100 py-1.5 rounded text-[10px] font-bold hover:bg-red-600 hover:text-white transition-all">VAI AL SERVIZIO</a>
+                    <a href="${s.url}" target="_blank" class="mt-4 block text-center bg-gray-100 py-2 rounded text-[10px] font-bold hover:bg-red-600 hover:text-white transition-all">VAI AL SERVIZIO</a>
                 </div>`;
         }
 
         function applyAllFilters() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
+            const q = document.getElementById('searchInput').value.toLowerCase().trim();
             const fServ = GLOBAL_DATA.servizi.filter(s => {
-                const mSearch = s.name.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q);
-                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || s.tags.some(t => ACTIVE_FILTERS.argomenti.includes(t));
-                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || s.addressee.some(t => ACTIVE_FILTERS.destinatari.includes(t));
+                const mSearch = (s.name || "").toLowerCase().includes(q) || (s.desc || "").toLowerCase().includes(q);
+                const mArg = ACTIVE_FILTERS.argomenti.length === 0 || (s.tags || []).some(t => ACTIVE_FILTERS.argomenti.includes(t));
+                const mDest = ACTIVE_FILTERS.destinatari.length === 0 || (s.addressee || []).some(t => ACTIVE_FILTERS.destinatari.includes(t));
                 return mSearch && mArg && mDest;
             });
-            const fOff = GLOBAL_DATA.flatStrutture.filter(o => o.name.toLowerCase().includes(q));
+            const fOff = GLOBAL_DATA.flatStrutture.filter(o => (o.name || "").toLowerCase().includes(q));
             
             const count = fServ.length + (q !== "" ? fOff.length : 0);
             const header = (q || ACTIVE_FILTERS.argomenti.length || ACTIVE_FILTERS.destinatari.length) ? 
@@ -243,7 +246,7 @@
             mapInstance = L.map('map-view').setView([46.0697, 11.1211], 9);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance);
             const icon = L.divIcon({ className: '', html: '<div class="custom-marker"><i class="fas fa-building"></i></div>', iconSize: [30, 30], iconAnchor: [15, 30] });
-            GLOBAL_DATA.sportelli.forEach(p => {
+            (GLOBAL_DATA.sportelli || []).forEach(p => {
                 if(p.lat && p.lng) {
                     L.marker([p.lat, p.lng], { icon }).addTo(mapInstance).bindPopup(`<b>${p.name}</b><br><small>${p.addr}</small>`);
                 }
@@ -261,13 +264,14 @@
 
         function toggleText(id, btn) {
             const el = document.getElementById(id);
+            if(!el) return;
             const isEx = el.classList.toggle('desc-expanded');
             btn.innerText = isEx ? 'CHIUDI' : 'LEGGI';
         }
 
         function getIcon(t) {
             const m = { telefono: 'fa-phone', email: 'fa-envelope', pec: 'fa-shield' };
-            return m[t.toLowerCase()] || 'fa-info-circle';
+            return m[(t || "").toLowerCase()] || 'fa-info-circle';
         }
 
         function toggleDropdown(id) {
