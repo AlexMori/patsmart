@@ -3,7 +3,7 @@ const axios = require('axios');
 
 exports.handler = async (event, context) => {
     const store = getStore({
-        name: 'pat_data_store',
+        name: 'pat_data_v2', 
         siteID: process.env.NETLIFY_SITE_ID,
         token: process.env.NETLIFY_AUTH_TOKEN,
     });
@@ -11,46 +11,77 @@ exports.handler = async (event, context) => {
     let persistedData;
     try {
         const saved = await store.get('global_cache', { type: 'json' });
-        
         persistedData = saved || { 
             servizi: [], strutture: [], flatStrutture: [], sportelli: [],
             nextServizi: "https://www.provincia.tn.it/api/openapi/servizi",
-            nextStrutture: "https://www.provincia.tn.it/api/openapi/amministrazione/strutture-organizzative",
-            lastUpdate: 0
+            nextStrutture: "https://www.provincia.tn.it/api/openapi/amministrazione/strutture-organizzative"
         };
-        
-        console.log(`Dati recuperati. Servizi in DB: ${persistedData.servizi.length}`);
     } catch (e) {
-        console.error("Errore critico accesso Blobs:", e.message);
-        return { statusCode: 500, body: "Impossibile accedere al database" };
+        return { statusCode: 500, body: JSON.stringify({ error: "Errore accesso Blobs" }) };
     }
 
-    const isCron = event.headers['user-agent']?.includes('cron') || event.queryStringParameters?.force === 'true';
+    const isForce = event.queryStringParameters?.force === 'true';
 
-    if (isCron || persistedData.servizi.length === 0) {
+    if (isForce) {
         try {
-            const fetchBatch = async (url) => {
-                const res = await axios.get(url, { timeout: 8000 });
-                return { items: res.data.items || [], next: res.data.next || null };
-            };
-
             if (persistedData.nextServizi) {
-                const batch = await fetchBatch(persistedData.nextServizi);
-                const combined = [...persistedData.servizi, ...batch.items];
+                const res = await axios.get(persistedData.nextServizi, { timeout: 9000 });
+                const rawItems = res.data.items || [];
+                
+                const cleanItems = rawItems.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    desc: (s.abstract || s.content || "").replace(/<[^>]*>?/gm, '').substring(0, 300) + "...",
+                    url: s.url,
+                    tags: s.tags || [],
+                    addressee: s.addressee || []
+                }));
+
+                const combined = [...persistedData.servizi, ...cleanItems];
                 persistedData.servizi = Array.from(new Map(combined.map(item => [item.id, item])).values());
-                persistedData.nextServizi = batch.next;
+                persistedData.nextServizi = res.data.next;
+            }
+
+            if (persistedData.nextStrutture && persistedData.strutture.length === 0) {
+                const res = await axios.get(persistedData.nextStrutture);
+                const rawStrutture = res.data.items || [];
+                
+                const cleanStr = (items) => items.map(n => ({
+                    id: n.id,
+                    name: n.name,
+                    desc: (n.abstract || "").substring(0, 150),
+                    addr: n.address?.address || "",
+                    type: n.type || [],
+                    contacts: (n.contacts || []).map(c => ({ type: c.type, value: c.value })),
+                    children: n.children ? cleanStr(n.children) : []
+                }));
+
+                persistedData.strutture = cleanStr(rawStrutture);
+                
+                const flatten = (items) => {
+                    let flat = [];
+                    items.forEach(i => {
+                        flat.push({ id: i.id, name: i.name, addr: i.addr });
+                        if(i.children) flat = [...flat, ...flatten(i.children)];
+                    });
+                    return flat;
+                };
+                persistedData.flatStrutture = flatten(persistedData.strutture);
+                persistedData.nextStrutture = res.data.next;
             }
 
             await store.setJSON('global_cache', persistedData);
-            console.log("Database aggiornato con successo!");
         } catch (err) {
-            console.error("Errore durante l'aggiornamento dati:", err.message);
+            console.error(err.message);
         }
     }
 
     return {
         statusCode: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*" 
+        },
         body: JSON.stringify(persistedData)
     };
 };
